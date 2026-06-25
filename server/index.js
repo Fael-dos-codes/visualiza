@@ -182,18 +182,8 @@ app.post("/api/login", async (req, res) => {
 
 app.get("/api/meta/dados", autenticar, async (req, res) => {
   const clienteId = req.cliente.id;
-  const periodoQuery = req.query.periodo || "hoje";
-
-  const mapaPeriodos = {
-    hoje: "today",
-    ontem: "yesterday",
-    "7d": "last_7d",
-    "30d": "last_30d",
-    mes_passado: "last_month",
-  };
-
-  const datePreset = mapaPeriodos[periodoQuery] || "today";
-  const periodo = periodoQuery;
+  const periodo = "Histórico disponível";
+const datePreset = "maximum";
 
   const { data: campanhas, error: campanhasError } = await supabase
     .from("cliente_campanhas")
@@ -226,10 +216,7 @@ app.get("/api/meta/dados", autenticar, async (req, res) => {
         );
 
         const insight = resposta.data.data?.[0] || {};
-console.log("Campanha:", campanha.nome_campanha);
-console.log("ID:", campanha.meta_campaign_id);
-console.log("Periodo (date_preset):", datePreset);
-console.log("Insight:", JSON.stringify(insight, null, 2));
+
 
         const actions = insight.actions || [];
         const costs = insight.cost_per_action_type || [];
@@ -803,36 +790,30 @@ app.post("/api/admin/clientes/:id/campanhas/importar", autenticar, verificarAdmi
 
 app.get("/api/admin/meta/campanhas", autenticar, verificarAdmin, async (req, res) => {
   try {
+    const contaAnuncios = process.env.META_AD_ACCOUNT_ID?.startsWith("act_")
+      ? process.env.META_AD_ACCOUNT_ID
+      : `act_${process.env.META_AD_ACCOUNT_ID}`;
+
     const resposta = await axios.get(
-      `https://graph.facebook.com/${process.env.META_API_VERSION}/act_${process.env.META_AD_ACCOUNT_ID}/campaigns`,
+      `https://graph.facebook.com/${process.env.META_API_VERSION}/${contaAnuncios}/campaigns`,
       {
         params: {
           access_token: process.env.META_ACCESS_TOKEN,
-          fields: "id,name,status",
+          fields: "id,name,status,effective_status",
           limit: 500,
         },
       }
     );
 
-    res.json(resposta.data.data);
+    return res.json(resposta.data.data || []);
   } catch (erro) {
-    console.error(erro.response?.data || erro);
-    res.status(500).json({
-      erro: "Erro ao buscar campanhas da Meta",
+    console.error("ERRO META CAMPANHAS:", erro.response?.data || erro.message);
+
+    return res.status(500).json({
+      erro: "Erro ao buscar campanhas da Meta.",
+      detalhes: erro.response?.data || erro.message,
     });
   }
-});
-
-app.get("/teste-campanhas-vinculadas", async (req, res) => {
-  const { data: campanhas, error } = await supabase
-    .from("cliente_campanhas")
-    .select("*");
-
-  if (error) {
-    return res.status(400).json(error);
-  }
-
-  return res.json(campanhas);
 });
 
 app.listen(3001, () => {

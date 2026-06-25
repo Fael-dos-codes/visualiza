@@ -72,10 +72,10 @@ export default function AdminCampanhas() {
     const dados = await resposta.json();
 
     if (!resposta.ok) {
-      setErro(dados.erro || "Erro ao importar campanhas da Meta.");
-      setCarregandoMeta(false);
-      return;
-    }
+  setErro(dados.detalhes?.error?.message || dados.erro || "Erro ao importar campanhas da Meta.");
+  setCarregandoMeta(false);
+  return;
+}
 
     const idsJaVinculados = campanhas.map((campanha) => campanha.meta_campaign_id);
 

@@ -13,19 +13,11 @@ import {
 
 const API = import.meta.env.VITE_API_URL;
 
-const periodos = [
-  { label: "Hoje", value: "hoje" },
-  { label: "Ontem", value: "ontem" },
-  { label: "Últimos 7 dias", value: "7d" },
-  { label: "Últimos 30 dias", value: "30d" },
-  { label: "Mês passado", value: "mes_passado" },
-];
 
 export default function Dashboard() {
   const relatorioRef = useRef(null);
   const [carregando, setCarregando] = useState(true);
   const [dados, setDados] = useState(null);
-  const [periodo, setPeriodo] = useState("hoje");
   const [nome, setNome] = useState(() => localStorage.getItem("nome_temp") || "Cliente");
 
   const dataAtual = new Date().toLocaleDateString("pt-BR");
@@ -56,9 +48,9 @@ export default function Dashboard() {
       setNome(cliente.nome_exibicao || "Cliente");
       localStorage.setItem("nome_temp", cliente.nome_exibicao || "Cliente");
 
-      const resposta = await fetch(`${API}/api/meta/dados?periodo=${periodo}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const resposta = await fetch(`${API}/api/meta/dados`, {
+  headers: { Authorization: `Bearer ${token}` },
+});
 
       const json = await resposta.json();
       setDados(json);
@@ -66,7 +58,7 @@ export default function Dashboard() {
     }
 
     carregarDados();
-  }, [periodo]);
+  }, []);
 
   async function salvarPDF() {
   if (!relatorioRef.current) return;
@@ -117,8 +109,7 @@ export default function Dashboard() {
     );
   }
 
-  const periodoSelecionado =
-    periodos.find((item) => item.value === periodo)?.label || "Hoje";
+  const periodoSelecionado = dados.periodo || "Histórico disponível";
 
   const resumo = dados.resumo || {};
   const resultados = dados.resultados || {};
@@ -162,24 +153,11 @@ export default function Dashboard() {
       </header>
 
       <section className="periodo-box">
-        <div>
-          <h2>Acompanhe seus resultados</h2>
-          <p>Escolha um período para visualizar os dados atualizados da sua conta de anúncios.</p>
-        </div>
-
-        <div className="periodo-filtros">
-          {periodos.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              className={periodo === item.value ? "periodo-ativo" : ""}
-              onClick={() => setPeriodo(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </section>
+  <div>
+    <h2>Acompanhe seus resultados</h2>
+    <p>Os dados abaixo representam o histórico disponível das campanhas vinculadas à sua conta.</p>
+  </div>
+</section>
 
       <section ref={relatorioRef} className="relatorio-pdf">
         <div className="report-title">
