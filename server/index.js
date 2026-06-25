@@ -181,14 +181,19 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.get("/api/meta/dados", autenticar, async (req, res) => {
-  const periodo = req.query.periodo || "hoje";
   const clienteId = req.cliente.id;
+  const periodoQuery = req.query.periodo || "hoje";
 
-  const { data: metricas } = await supabase
-    .from("metricas_cliente")
-    .select("*")
-    .eq("cliente_id", clienteId)
-    .single();
+  const mapaPeriodos = {
+    hoje: "today",
+    ontem: "yesterday",
+    "7d": "last_7d",
+    "30d": "last_30d",
+    mes_passado: "last_month",
+  };
+
+  const datePreset = mapaPeriodos[periodoQuery] || "today";
+  const periodo = periodoQuery;
 
   const { data: campanhas, error: campanhasError } = await supabase
     .from("cliente_campanhas")
@@ -199,89 +204,155 @@ app.get("/api/meta/dados", autenticar, async (req, res) => {
     return res.status(400).json({ erro: "Erro ao buscar campanhas." });
   }
 
-  const base = metricas || {
-    periodo: "Últimos 30 dias",
-    investimento: 0,
-    alcance: 0,
-    impressoes: 0,
-    frequencia: 0,
-    cliques: 0,
-    cliques_link: 0,
-    ctr: 0,
-    cpc: 0,
-    cpm: 0,
-    cpp: 0,
-    leads: 0,
-    conversoes: 0,
-    mensagens: 0,
-    compras: 0,
-    custo_por_lead: 0,
-    custo_por_conversa: 0,
-    custo_por_compra: 0,
-    curtidas: 0,
-    comentarios: 0,
-    compartilhamentos: 0,
-    salvamentos: 0,
-    visualizacoes_video: 0,
-    visualizacoes_25: 0,
-    visualizacoes_50: 0,
-    visualizacoes_75: 0,
-    visualizacoes_100: 0,
-  };
+  const { data: extras } = await supabase
+    .from("metricas_cliente")
+    .select("valor_faturado, quantidade_vendas, roi_real, observacoes")
+    .eq("cliente_id", clienteId)
+    .single();
 
-  return res.json({
-   periodo,
+  try {
+    const campanhasComMetricas = await Promise.all(
+      campanhas.map(async (campanha) => {
+        const resposta = await axios.get(
+          `https://graph.facebook.com/${process.env.META_API_VERSION}/${campanha.meta_campaign_id}/insights`,
+          {
+            params: {
+              access_token: process.env.META_ACCESS_TOKEN,
+              date_preset: datePreset,
+              fields:
+                "spend,reach,impressions,clicks,inline_link_clicks,ctr,cpc,cpm,actions,cost_per_action_type",
+            },
+          }
+        );
 
-    resumo: {
-      investimento: base.investimento,
-      alcance: base.alcance,
-      impressoes: base.impressoes,
-      frequencia: base.frequencia,
-      cliques: base.cliques,
-      cliques_link: base.cliques_link,
-      ctr: base.ctr,
-      cpc: base.cpc,
-      cpm: base.cpm,
-      cpp: base.cpp,
-    },
+        const insight = resposta.data.data?.[0] || {};
+console.log("Campanha:", campanha.nome_campanha);
+console.log("ID:", campanha.meta_campaign_id);
+console.log("Periodo (date_preset):", datePreset);
+console.log("Insight:", JSON.stringify(insight, null, 2));
 
-    resultados: {
-      leads: base.leads,
-      conversoes: base.conversoes,
-      mensagens: base.mensagens,
-      compras: base.compras,
-      custo_por_lead: base.custo_por_lead,
-      custo_por_conversa: base.custo_por_conversa,
-      custo_por_compra: base.custo_por_compra,
-    },
+        const actions = insight.actions || [];
+        const costs = insight.cost_per_action_type || [];
 
-    engajamento: {
-      curtidas: base.curtidas,
-      comentarios: base.comentarios,
-      compartilhamentos: base.compartilhamentos,
-      salvamentos: base.salvamentos,
-      visualizacoes_video: base.visualizacoes_video,
-      visualizacoes_25: base.visualizacoes_25,
-      visualizacoes_50: base.visualizacoes_50,
-      visualizacoes_75: base.visualizacoes_75,
-      visualizacoes_100: base.visualizacoes_100,
-    },
+        const leads =
+          Number(actions.find((a) => a.action_type === "lead")?.value || 0) ||
+          Number(actions.find((a) => a.action_type === "onsite_conversion.lead_grouped")?.value || 0);
 
-    campanhas: campanhas.map((campanha) => ({
-  nome: campanha.nome_campanha || "Campanha sem nome",
-  meta_campaign_id: campanha.meta_campaign_id,
-  status: "Vinculada",
+        const mensagens =
+          Number(actions.find((a) => a.action_type === "onsite_conversion.messaging_conversation_started_7d")?.value || 0) ||
+          Number(actions.find((a) => a.action_type === "onsite_conversion.messaging_first_reply")?.value || 0);
 
-  investimento: campanha.investimento || 0,
-  alcance: campanha.alcance || 0,
-  impressoes: campanha.impressoes || 0,
-  cliques: campanha.cliques || 0,
-  leads: campanha.leads || 0,
-  ctr: campanha.ctr || 0,
-  cpc: campanha.cpc || 0,
-  cpm: campanha.cpm || 0,
-})),
-  });
+        const compras =
+          Number(actions.find((a) => a.action_type === "purchase")?.value || 0) ||
+          Number(actions.find((a) => a.action_type === "omni_purchase")?.value || 0);
+
+        const custoPorLead =
+          Number(costs.find((c) => c.action_type === "lead")?.value || 0) ||
+          Number(costs.find((c) => c.action_type === "onsite_conversion.lead_grouped")?.value || 0);
+
+        return {
+          nome: campanha.nome_campanha || "Campanha sem nome",
+          meta_campaign_id: campanha.meta_campaign_id,
+          status: "Vinculada",
+
+          investimento: Number(insight.spend || 0),
+          alcance: Number(insight.reach || 0),
+          impressoes: Number(insight.impressions || 0),
+          cliques: Number(insight.clicks || 0),
+          cliques_link: Number(insight.inline_link_clicks || 0),
+
+          leads,
+          mensagens,
+          compras,
+          conversoes: leads + mensagens + compras,
+
+          ctr: Number(insight.ctr || 0).toFixed(2),
+          cpc: Number(insight.cpc || 0),
+          cpm: Number(insight.cpm || 0),
+          custo_por_lead: custoPorLead,
+        };
+      })
+    );
+
+    const resumo = campanhasComMetricas.reduce(
+      (acc, campanha) => {
+        acc.investimento += campanha.investimento;
+        acc.alcance += campanha.alcance;
+        acc.impressoes += campanha.impressoes;
+        acc.cliques += campanha.cliques;
+        acc.cliques_link += campanha.cliques_link;
+        return acc;
+      },
+      {
+        investimento: 0,
+        alcance: 0,
+        impressoes: 0,
+        cliques: 0,
+        cliques_link: 0,
+      }
+    );
+
+    const resultados = campanhasComMetricas.reduce(
+      (acc, campanha) => {
+        acc.leads += campanha.leads;
+        acc.mensagens += campanha.mensagens;
+        acc.compras += campanha.compras;
+        acc.conversoes += campanha.conversoes;
+        return acc;
+      },
+      {
+        leads: 0,
+        mensagens: 0,
+        compras: 0,
+        conversoes: 0,
+      }
+    );
+
+    resumo.ctr =
+      resumo.impressoes > 0
+        ? Number(((resumo.cliques / resumo.impressoes) * 100).toFixed(2))
+        : 0;
+
+    resumo.cpc =
+      resumo.cliques > 0
+        ? Number((resumo.investimento / resumo.cliques).toFixed(2))
+        : 0;
+
+    resumo.cpm =
+      resumo.impressoes > 0
+        ? Number(((resumo.investimento / resumo.impressoes) * 1000).toFixed(2))
+        : 0;
+
+    resultados.custo_por_lead =
+      resultados.leads > 0
+        ? Number((resumo.investimento / resultados.leads).toFixed(2))
+        : 0;
+
+    resultados.custo_por_conversa =
+      resultados.mensagens > 0
+        ? Number((resumo.investimento / resultados.mensagens).toFixed(2))
+        : 0;
+
+    resultados.custo_por_compra =
+      resultados.compras > 0
+        ? Number((resumo.investimento / resultados.compras).toFixed(2))
+        : 0;
+
+    return res.json({
+      periodo,
+      resumo,
+      resultados,
+      campanhas: campanhasComMetricas,
+      extras: extras || null,
+    });
+  } catch (erro) {
+    console.error(erro.response?.data || erro);
+
+    return res.status(500).json({
+      erro: "Erro ao buscar métricas da Meta.",
+      detalhes: erro.response?.data || erro.message,
+    });
+  }
 });
 
 app.get("/api/me", autenticar, async (req, res) => {
@@ -750,6 +821,18 @@ app.get("/api/admin/meta/campanhas", autenticar, verificarAdmin, async (req, res
       erro: "Erro ao buscar campanhas da Meta",
     });
   }
+});
+
+app.get("/teste-campanhas-vinculadas", async (req, res) => {
+  const { data: campanhas, error } = await supabase
+    .from("cliente_campanhas")
+    .select("*");
+
+  if (error) {
+    return res.status(400).json(error);
+  }
+
+  return res.json(campanhas);
 });
 
 app.listen(3001, () => {
