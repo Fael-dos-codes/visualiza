@@ -159,7 +159,6 @@ export default function AdminCampanhas() {
           <a href="/admin">Clientes</a>
           <a href="/admin/campanhas">Campanhas</a>
           <a href="/admin/metricas">Resultados Extras</a>
-          <a href="/admin/relatorios">Relatórios</a>
         </div>
       </header>
 

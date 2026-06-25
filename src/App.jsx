@@ -8,8 +8,6 @@ import "./index.css";
 import AdminClientes from "./pages/AdminClientes";
 import AdminCampanhas from "./pages/AdminCampanhas";
 import AdminMetricas from "./pages/AdminMetricas";
-import AdminRelatorios from "./pages/AdminRelatorios";
-import TrocarSenha from "./pages/TrocarSenha";
 
 export default function App() {
   return (
@@ -23,8 +21,6 @@ export default function App() {
         <Route path="/admin" element={<AdminClientes />} />
         <Route path="/admin/campanhas" element={<AdminCampanhas />} />
         <Route path="/admin/metricas" element={<AdminMetricas />} />
-        <Route path="/admin/relatorios" element={<AdminRelatorios />} />
-        <Route path="/trocar-senha" element={<TrocarSenha />} />
       </Routes>
     </BrowserRouter>
   );

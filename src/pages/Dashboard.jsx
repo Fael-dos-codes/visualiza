@@ -142,9 +142,7 @@ export default function Dashboard() {
         <div className="dashboard-actions">
           <button onClick={salvarPDF}>Salvar em PDF</button>
 
-          <a className="btn-link" href="/trocar-senha">
-            Trocar senha
-          </a>
+          
 
           <button onClick={sair} className="danger">
             Sair

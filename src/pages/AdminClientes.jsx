@@ -90,7 +90,6 @@ export default function AdminClientes() {
   <a href="/admin">Clientes</a>
   <a href="/admin/campanhas">Campanhas</a>
   <a href="/admin/metricas">Métricas</a>
-  <a href="/admin/relatorios">Relatórios</a>
   
 </div>
         </div>
